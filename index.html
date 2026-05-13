@@ -1,24 +1,387 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VexoMC - IP السيرفر</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ZIP Timestamp Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<!-- JSZip -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --bg:#09090f;--surface:#111118;--surface2:#1a1a26;
+  --border:#ffffff10;--border2:#ffffff1e;
+  --accent:#7c5cfc;--accent2:#a78bfa;
+  --green:#22c55e;--red:#ef4444;
+  --text:#eeeef8;--muted:#7777aa;
+  --mono:'Space Mono',monospace;--sans:'Syne',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(124,92,252,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(124,92,252,.03) 1px,transparent 1px);
+  background-size:36px 36px;pointer-events:none;z-index:0;
+}
+.glow{position:fixed;top:-150px;left:50%;transform:translateX(-50%);width:600px;height:400px;background:radial-gradient(ellipse,rgba(124,92,252,.1) 0%,transparent 70%);pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+
+header{text-align:center;margin-bottom:2.5rem}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--accent2);background:rgba(124,92,252,.12);border:1px solid rgba(124,92,252,.22);padding:3px 12px;border-radius:99px;margin-bottom:1rem;text-transform:uppercase}
+h1{font-size:clamp(24px,4vw,38px);font-weight:800;letter-spacing:-.02em;background:linear-gradient(135deg,#fff 40%,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:.5rem}
+.sub{font-size:13px;color:var(--muted);max-width:420px;margin:0 auto;line-height:1.6}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.5rem;margin-bottom:1rem}
+.card-label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;display:flex;align-items:center;gap:8px}
+.card-label::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0}
+
+/* drop */
+.drop-zone{border:1.5px dashed var(--border2);border-radius:10px;padding:2rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);position:relative}
+.drop-zone:hover,.drop-zone.over{border-color:var(--accent);background:rgba(124,92,252,.06)}
+.drop-zone.loaded{border-style:solid;border-color:var(--green);background:rgba(34,197,94,.04)}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-icon{font-size:28px;margin-bottom:8px}
+.drop-title{font-size:14px;font-weight:600;margin-bottom:3px}
+.drop-sub{font-size:12px;color:var(--muted)}
+.file-pill{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--green);background:rgba(34,197,94,.1);padding:3px 10px;border-radius:6px}
+
+/* search */
+.search-row{display:flex;gap:8px;margin-bottom:10px}
+.search-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;transition:border-color .15s}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--muted)}
+.filter-select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;cursor:pointer}
+
+/* file list */
+.file-list{max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface2)}
+.file-list::-webkit-scrollbar{width:4px}
+.file-list::-webkit-scrollbar-track{background:transparent}
+.file-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+.file-item{
+  display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;
+  padding:9px 14px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .15s;font-size:12px;
+}
+.file-item:last-child{border-bottom:none}
+.file-item:hover{background:rgba(124,92,252,.06)}
+.file-item.selected{background:rgba(124,92,252,.12);border-left:2px solid var(--accent)}
+.file-item.folder{cursor:default;opacity:.6}
+.file-name{font-family:var(--mono);display:flex;align-items:center;gap:7px;overflow:hidden}
+.file-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-icon{flex-shrink:0;font-size:13px}
+.file-size{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.file-date{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+
+/* editor panel */
+.editor-panel{display:none}
+.editor-header{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap}
+.selected-name{font-family:var(--mono);font-size:12px;background:var(--surface2);border:1px solid var(--border);padding:6px 12px;border-radius:7px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-size{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+.ts-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.25rem}
+@media(max-width:500px){.ts-grid{grid-template-columns:1fr}}
+.ts-field label{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:6px}
+.ts-field input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-family:var(--mono);font-size:13px;color:var(--text);outline:none;transition:border-color .15s}
+.ts-field input:focus{border-color:var(--accent)}
+
+.preset-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.25rem}
+.preset-btn{font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s}
+.preset-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+
+.scope-row{display:flex;gap:8px;margin-bottom:1.25rem;flex-wrap:wrap}
+.scope-btn{font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s}
+.scope-btn.active{border-color:var(--accent);background:rgba(124,92,252,.12);color:var(--accent2)}
+
+.action-row{display:flex;gap:8px;flex-wrap:wrap}
+.dl-btn{
+  flex:1;min-width:140px;padding:11px 16px;
+  font-family:var(--sans);font-size:13px;font-weight:700;
+  border:none;border-radius:9px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  transition:opacity .2s,transform .1s;
+}
+.dl-btn:active{transform:scale(.97)}
+.dl-btn.primary{background:linear-gradient(135deg,var(--accent),#9d4edd);color:#fff}
+.dl-btn.secondary{background:var(--surface2);border:1px solid var(--border2);color:var(--text)}
+.dl-btn:hover{opacity:.85}
+
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--muted);font-family:var(--mono);font-size:12px}
+.empty-icon{font-size:28px;margin-bottom:8px;opacity:.4}
+
+.toast{
+  position:fixed;bottom:2rem;right:1.5rem;z-index:999;
+  background:#1a1a2e;border:1px solid var(--border2);
+  border-radius:10px;padding:10px 16px;
+  font-family:var(--mono);font-size:12px;color:var(--green);
+  transform:translateY(20px);opacity:0;transition:all .3s;
+  pointer-events:none;
+}
+.toast.show{transform:translateY(0);opacity:1}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="minecraft-text">VexoMC</div>
-        <div class="server-ip" onclick="copyIP()" data-name="Server IP">vexomc.play.hosting</div>
-        <button class="copy-btn" onclick="copyIP()">📋 نسخ IP السيرفر</button>
-        <div class="platforms">
-            <a href="https://vexomc.play.hosting" class="platform server" title="Server IP" data-name="السيرفر"><i class="fas fa-server"></i></a>
-            <a href="https://discord.gg/t8YaQxZZ" class="platform discord" title="Discord" data-name="ديسكورد"><i class="fab fa-discord"></i></a>
-            <a href="https://www.tiktok.com/@rynoxmc1" class="platform tiktok" title="TikTok" data-name="تيك توك"><i class="fab fa-tiktok"></i></a>
-            <a href="https://www.youtube.com/channel/UCijZ7gc_WXjYEOE-dpLieBA" class="platform youtube" title="YouTube" data-name="يوتيوب"><i class="fab fa-youtube"></i></a>
-        </div>
+<div class="glow"></div>
+<div class="wrap">
+
+<header>
+  <div class="badge">🗜 ZIP Editor</div>
+  <h1>ZIP Timestamp Editor</h1>
+  <p class="sub">افتح أي ZIP، اختار ملف، غير الـ timestamp، وحمله ZIP جديد.</p>
+</header>
+
+<!-- Upload -->
+<div class="card">
+  <div class="card-label">Upload ZIP</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" accept=".zip" id="fileInput"/>
+    <div class="drop-icon">📦</div>
+    <div class="drop-title">Drop your ZIP here</div>
+    <div class="drop-sub">أو اضغط للاختيار</div>
+    <div class="file-pill" id="filePill" style="display:none">✓ <span id="zipName"></span></div>
+  </div>
+</div>
+
+<!-- File Browser -->
+<div class="card" id="browserCard" style="display:none">
+  <div class="card-label">Browse Files — <span id="fileCount">0</span> files</div>
+  <div class="search-row">
+    <input class="search-input" id="searchInput" placeholder="Search files..." oninput="renderList()"/>
+    <select class="filter-select" id="filterSelect" onchange="renderList()">
+      <option value="">All types</option>
+      <option value=".yml">YML</option>
+      <option value=".json">JSON</option>
+      <option value=".png">PNG</option>
+      <option value=".txt">TXT</option>
+    </select>
+  </div>
+  <div class="file-list" id="fileList">
+    <div class="empty-state"><div class="empty-icon">📂</div>No files loaded</div>
+  </div>
+</div>
+
+<!-- Editor -->
+<div class="card editor-panel" id="editorCard">
+  <div class="card-label">Edit Timestamp</div>
+  <div class="editor-header">
+    <div class="selected-name" id="selName">—</div>
+    <div class="sel-size" id="selSize"></div>
+  </div>
+
+  <div class="ts-grid">
+    <div class="ts-field">
+      <label>New Date</label>
+      <input type="date" id="tsDate"/>
     </div>
-    <script src="script.js"></script>
+    <div class="ts-field">
+      <label>New Time</label>
+      <input type="time" id="tsTime" step="1"/>
+    </div>
+  </div>
+
+  <div class="preset-row">
+    <button class="preset-btn" onclick="setPreset('now')">⚡ Now</button>
+    <button class="preset-btn" onclick="setPreset('today0')">🌅 Today 00:00</button>
+    <button class="preset-btn" onclick="setPreset('2020')">📅 2020-01-01</button>
+    <button class="preset-btn" onclick="setPreset('2000')">🕰 2000-01-01</button>
+    <button class="preset-btn" onclick="setPreset('unix')">💀 Unix Epoch</button>
+  </div>
+
+  <div style="margin-bottom:.75rem;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Apply to</div>
+  <div class="scope-row">
+    <button class="scope-btn active" id="scopeOne" onclick="setScope('one')">Selected file only</button>
+    <button class="scope-btn" id="scopeAll" onclick="setScope('all')">All files in ZIP</button>
+    <button class="scope-btn" id="scopeFolder" onclick="setScope('folder')">Same folder</button>
+  </div>
+
+  <div class="action-row">
+    <button class="dl-btn primary" onclick="downloadModified()">⬇ Download ZIP</button>
+    <button class="dl-btn secondary" onclick="downloadFile()">📄 Download file only</button>
+  </div>
+</div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let zip=null;
+let allFiles=[];
+let selectedPath=null;
+let scope='one';
+
+const dropZone=document.getElementById('dropZone');
+const fileInput=document.getElementById('fileInput');
+const filePill=document.getElementById('filePill');
+const zipName=document.getElementById('zipName');
+const browserCard=document.getElementById('browserCard');
+const fileList=document.getElementById('fileList');
+const fileCount=document.getElementById('fileCount');
+const editorCard=document.getElementById('editorCard');
+const selName=document.getElementById('selName');
+const selSize=document.getElementById('selSize');
+const tsDate=document.getElementById('tsDate');
+const tsTime=document.getElementById('tsTime');
+
+// drag & drop
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('over')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('over');const f=e.dataTransfer.files[0];if(f)loadZip(f)});
+fileInput.addEventListener('change',()=>{if(fileInput.files[0])loadZip(fileInput.files[0])});
+
+async function loadZip(f){
+  try{
+    zip=await JSZip.loadAsync(f);
+    allFiles=Object.keys(zip.files).filter(k=>!zip.files[k].dir);
+    zipName.textContent=f.name;
+    filePill.style.display='inline-flex';
+    dropZone.classList.add('loaded');
+    fileCount.textContent=allFiles.length;
+    browserCard.style.display='block';
+    renderList();
+    setDefaultTimestamp();
+  }catch(e){showToast('❌ Failed to read ZIP: '+e.message,true)}
+}
+
+function renderList(){
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  const ext=document.getElementById('filterSelect').value;
+  let filtered=allFiles.filter(p=>{
+    if(q&&!p.toLowerCase().includes(q))return false;
+    if(ext&&!p.toLowerCase().endsWith(ext))return false;
+    return true;
+  });
+  if(!filtered.length){
+    fileList.innerHTML='<div class="empty-state"><div class="empty-icon">🔍</div>No files found</div>';
+    return;
+  }
+  fileList.innerHTML=filtered.map(p=>{
+    const entry=zip.files[p];
+    const parts=p.split('/');
+    const name=parts[parts.length-1];
+    const icon=getIcon(name);
+    const size=entry._data?formatSize(entry._data.uncompressedSize):'—';
+    const date=entry.date?formatDate(entry.date):'—';
+    const sel=p===selectedPath?'selected':'';
+    return `<div class="file-item ${sel}" onclick="selectFile('${p.replace(/'/g,"\\'")}')">
+      <div class="file-name"><span class="file-icon">${icon}</span><span title="${p}">${p}</span></div>
+      <div class="file-size">${size}</div>
+      <div class="file-date">${date}</div>
+    </div>`;
+  }).join('');
+}
+
+function getIcon(name){
+  const ext=name.split('.').pop().toLowerCase();
+  const map={yml:'📋',yaml:'📋',json:'🔧',png:'🖼',jpg:'🖼',jpeg:'🖼',gif:'🖼',txt:'📄',md:'📝',zip:'📦',jar:'☕',ogg:'🎵',wav:'🎵',mp3:'🎵'};
+  return map[ext]||'📄';
+}
+
+function formatSize(b){
+  if(!b)return '0 B';
+  if(b<1024)return b+' B';
+  if(b<1048576)return (b/1024).toFixed(1)+' KB';
+  return (b/1048576).toFixed(1)+' MB';
+}
+
+function formatDate(d){
+  if(!d)return '—';
+  try{
+    return d.toISOString().slice(0,16).replace('T',' ');
+  }catch{return '—'}
+}
+
+function selectFile(path){
+  selectedPath=path;
+  const entry=zip.files[path];
+  selName.textContent=path;
+  selSize.textContent=entry._data?formatSize(entry._data.uncompressedSize):'';
+  editorCard.style.display='block';
+  // pre-fill with file's existing date
+  if(entry.date){
+    const d=entry.date;
+    tsDate.value=d.toISOString().slice(0,10);
+    tsTime.value=d.toTimeString().slice(0,8);
+  }
+  renderList();
+  editorCard.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function setDefaultTimestamp(){
+  const now=new Date();
+  tsDate.value=now.toISOString().slice(0,10);
+  tsTime.value=now.toTimeString().slice(0,8);
+}
+
+function setPreset(p){
+  const presets={
+    now:()=>new Date(),
+    today0:()=>{const d=new Date();d.setHours(0,0,0,0);return d},
+    '2020':()=>new Date('2020-01-01T00:00:00'),
+    '2000':()=>new Date('2000-01-01T00:00:00'),
+    unix:()=>new Date(0)
+  };
+  const d=presets[p]();
+  tsDate.value=d.toISOString().slice(0,10);
+  tsTime.value=d.toTimeString().slice(0,8);
+}
+
+function setScope(s){
+  scope=s;
+  document.querySelectorAll('.scope-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('scope'+s.charAt(0).toUpperCase()+s.slice(1)).classList.add('active');
+}
+
+function getNewDate(){
+  return new Date(tsDate.value+'T'+tsTime.value);
+}
+
+function getTargetFiles(){
+  if(scope==='all')return allFiles;
+  if(scope==='folder'){
+    const folder=selectedPath.includes('/')?selectedPath.slice(0,selectedPath.lastIndexOf('/')+1):'';
+    return allFiles.filter(p=>p.startsWith(folder)&&!p.slice(folder.length).includes('/'));
+  }
+  return [selectedPath];
+}
+
+async function downloadModified(){
+  if(!zip||!selectedPath){showToast('اختر ملف أولاً');return}
+  const newDate=getNewDate();
+  const targets=new Set(getTargetFiles());
+  const newZip=new JSZip();
+  for(const path of allFiles){
+    const entry=zip.files[path];
+    const content=await entry.async('arraybuffer');
+    newZip.file(path,content,{date:targets.has(path)?newDate:entry.date});
+  }
+  const blob=await newZip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+  triggerDownload(blob,'modified.zip');
+  showToast('✓ ZIP downloaded with new timestamp!');
+}
+
+async function downloadFile(){
+  if(!zip||!selectedPath){showToast('اختر ملف أولاً');return}
+  const entry=zip.files[selectedPath];
+  const content=await entry.async('blob');
+  const fname=selectedPath.split('/').pop();
+  triggerDownload(content,fname);
+  showToast('✓ File downloaded!');
+}
+
+function triggerDownload(blob,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+
+function showToast(msg,err=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.color=err?'#fca5a5':'var(--green)';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+</script>
 </body>
 </html>
